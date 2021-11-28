@@ -9,15 +9,13 @@ services:
   adminer:
     image: adminer
     ports:
-      - 127.0.0.1:8090:8080
+      - 127.0.0.1:8080:8080
   app:
     build:
       context: ./
       dockerfile: ./docker/app/Dockerfile
     volumes:
       - ./src/python:/usr/app
-    ports:
-      - 8080:8080
     depends_on:
       - db
     entrypoint: 'wait-for-it.sh db:5432 --'
