@@ -1,0 +1,29 @@
+version: '3.1'
+services:
+  db:
+    image: postgres:14.1
+    volumes:
+      - ./db/:/var/lib/postgresql/data
+    environment:
+      POSTGRES_PASSWORD: ${SNF_BOT_DB_PASS}
+  adminer:
+    image: adminer
+    ports:
+      - 127.0.0.1:8090:8080
+  app:
+    build:
+      context: ./
+      dockerfile: ./docker/app/Dockerfile
+    volumes:
+      - ./src/python:/usr/app
+    ports:
+      - 8080:8080
+    depends_on:
+      - db
+    entrypoint: 'wait-for-it.sh db:5432 --'
+    command: [
+      'python3', 'app.py',
+      '--pg-host', 'db',
+      '--pg-password', '${SNF_BOT_DB_PASS}',
+      '--tg-token', '${SNF_BOT_TELEGRAM_TOKEN}'
+    ]
