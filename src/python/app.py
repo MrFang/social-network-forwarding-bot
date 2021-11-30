@@ -5,6 +5,7 @@ import requests
 import vk
 from dotenv import dotenv_values
 import os
+import time
 
 from telebot import types
 
@@ -22,10 +23,10 @@ connection = psycopg2.connect(
 tg_token = config['SNF_BOT_TELEGRAM_TOKEN']
 bot = telebot.TeleBot(tg_token, parse_mode=None)
 vk_token = config['SNF_BOT_VK_TOKEN']  # TODO: move to DB
-
+vk_token_wrong = 'e0bb9661300067cbac41606ea905c2f49aa7db5d5e0e14f34fa31207283c96e38314d9dc59f2e07b17341'
 
 def init_session():
-    session = vk.Session(access_token=vk_token)
+    session = vk.Session(access_token=vk_token_wrong)
     vk_api = vk.API(session,  v='5.131')
     return vk_api
 
@@ -69,14 +70,36 @@ def new_link(message):
     bot.register_next_step_handler(message, get_channel_name)
 
 
-@bot.message_handler(func=lambda m: True)
-def echo_all(message):
+@bot.channel_post_handler(func=lambda m: True)
+def forward_text(message):
     vk_api = init_session()
-    vk_api.wall.post(message=message.text)
+    try:
+        res = vk_api.wall.post(message=message.text)
+    except vk.exceptions.VkAPIError as e:
+        vk_api = process_error(e)
+        vk_api.wall.post(message=message.text)
 
 
-@bot.message_handler(content_types=["photo"])
-def echo_all(message):
+def process_error(e):
+    if e.code == 5:
+        # wrong_token
+        return vk.API(vk.Session(access_token=vk_token),  v='5.131')
+    if e.code == 6:
+        time.sleep(0.05)
+        return init_session()
+    if e.code == 7:
+#         no permission
+        return init_session()
+    if e.code == 10:
+#         inner mistake
+        return init_session()
+    if e.code == 14:
+        # capcha
+        return init_session()
+
+
+@bot.channel_post_handler(content_types=["photo"])
+def forward_photo(message):
     file_id = message.photo[-1].file_id
     file_path = bot.get_file(file_id).file_path
     download_link = f'https://api.telegram.org/file/bot{tg_token}/{file_path}'
