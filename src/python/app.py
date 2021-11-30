@@ -17,9 +17,10 @@ connection = psycopg2.connect(
     host=config['SNF_BOT_DB_HOST'],
     password=config['SNF_BOT_DB_PASS']
 )
-
-bot = telebot.TeleBot(config['SNF_BOT_TELEGRAM_TOKEN'], parse_mode=None)
+tg_token = config['SNF_BOT_TELEGRAM_TOKEN']
+bot = telebot.TeleBot(tg_token, parse_mode=None)
 vk_token = config['SNF_BOT_VK_TOKEN']  # TODO: move to DB
+
 
 def init_session():
     session = vk.Session(access_token=vk_token)
@@ -28,7 +29,7 @@ def init_session():
 
 
 @bot.message_handler(func=lambda m: True)
-def echo_all(message)
+def echo_all(message):
     vk_api = init_session()
     vk_api.wall.post(message=message.text)
 
@@ -36,20 +37,25 @@ def echo_all(message)
 @bot.message_handler(content_types=["photo"])
 def echo_all(message):
     file_id = message.photo[-1].file_id
-    file_path = bot.get_file(file_id)
-    download_link = f'https://api.telegram.org/file/bot{args.tg_token}/{file_path}'
+    file_path = bot.get_file(file_id).file_path
+    download_link = f'https://api.telegram.org/file/bot{tg_token}/{file_path}'
 
-    requests.get(download_link)
+    filename = download_link.split('/')[-1]
+    download_response = requests.get(download_link,  allow_redirects=True)
+
     vk_api = init_session()
     vk_photo_server = vk_api.photos.getWallUploadServer()
     upload_url = vk_photo_server['upload_url']
-    resp = requests.post(upload_url, files={'file': open(file_path, 'rb')}).json()
-    photo = vk_api.photos.saveWallPhoto(server=resp['server'], photo=resp['photo'], hash=resp['hash'])
-    bot.file_path
-    bot.reply_to(message, file_path)
-    # link = f'https://api.telegram.org/file/bot{args.tg_token}/{path}'
-    # bot.send_photo(message.chat.id, file_id, caption=message.caption)
-    # requests.post(f'https://api.vk.com/method/wall.post?v=5.131?owner_id=89685577&message={message.caption}&attachments=photo{}&access_token={access_token}')
+    open(filename, 'wb').write(download_response.content)
+    img = {'photo': (filename, open(filename, 'rb'))}
+
+    resp = requests.post(upload_url, files=img).json()
+    photo_id = vk_api.photos.saveWallPhoto(server=resp['server'], photo=resp['photo'], hash=resp['hash'])
+
+    photo_id = photo_id[0]
+    photo_id = 'photo' + str(photo_id['owner_id']) + '_' + str(photo_id['id'])
+
+    vk_api.wall.post(attachments=photo_id, message=message.caption)
 
 
 bot.infinity_polling()
