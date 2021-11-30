@@ -3,30 +3,23 @@ import telebot
 import argparse
 import requests
 import vk
+from dotenv import dotenv_values
+import os
 
-parser = argparse.ArgumentParser(description='Hello DB web application')
-parser.add_argument(
-    '--pg-host', help='PostgreSQL host name', default='localhost')
-parser.add_argument('--pg-port', help='PostgreSQL port', default=5432)
-parser.add_argument('--pg-user', help='PostgreSQL user', default='postgres')
-parser.add_argument('--pg-password', help='PostgreSQL password', default='')
-parser.add_argument(
-    '--pg-database', help='PostgreSQL database', default='postgres')
-parser.add_argument('--tg-token', help='Telegram bot token', default='')
+if not os.path.isfile('.env'):
+    raise RuntimeError('.env file does not exist')
 
-args = parser.parse_args()
+config = dotenv_values('.env')
 
 connection = psycopg2.connect(
-    database=args.pg_database,
-    user=args.pg_user,
-    host=args.pg_host,
-    password=args.pg_password
+    database='postgres',
+    user='postgres',
+    host=config['SNF_BOT_DB_HOST'],
+    password=config['SNF_BOT_DB_PASS']
 )
 
-bot = telebot.TeleBot(args.tg_token, parse_mode=None)
-vk_token = 'e0bbc661300067cbac41606ea905c2f49aa7db5d5e0e14f34fa31207283c96e38314d9dc59f2e07b17341'
-app_id = 8013095
-
+bot = telebot.TeleBot(config['SNF_BOT_TELEGRAM_TOKEN'], parse_mode=None)
+vk_token = config['SNF_BOT_VK_TOKEN']  # TODO: move to DB
 
 def init_session():
     session = vk.Session(access_token=vk_token)
@@ -35,8 +28,7 @@ def init_session():
 
 
 @bot.message_handler(func=lambda m: True)
-def echo_all(message):
-    # bot.reply_to(message, message.text)
+def echo_all(message)
     vk_api = init_session()
     vk_api.wall.post(message=message.text)
 

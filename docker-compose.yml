@@ -15,13 +15,8 @@ services:
       context: ./
       dockerfile: ./docker/app/Dockerfile
     volumes:
-      - ./src/python:/usr/app
+      - .:/usr/app
     depends_on:
       - db
-    entrypoint: 'wait-for-it.sh db:5432 --'
-    command: [
-      'python3', 'app.py',
-      '--pg-host', 'db',
-      '--pg-password', '${SNF_BOT_DB_PASS}',
-      '--tg-token', '${SNF_BOT_TELEGRAM_TOKEN}'
-    ]
+    entrypoint: '/usr/app/wait-for-it.sh ${SNF_BOT_DB_HOST}:5432 --'
+    command: ['python3', 'src/python/app.py']
