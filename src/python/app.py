@@ -1,6 +1,7 @@
 import psycopg2
+import psycopg2.extras
 import telebot
-import argparse
+import db_funcs
 import requests
 import vk
 from dotenv import dotenv_values
@@ -14,12 +15,21 @@ if not os.path.isfile('.env'):
 
 config = dotenv_values('.env')
 
-connection = psycopg2.connect(
-    database='postgres',
-    user='postgres',
-    host=config['SNF_BOT_DB_HOST'],
-    password=config['SNF_BOT_DB_PASS']
-)
+try:
+    connection = psycopg2.connect(
+        database='postgres',
+        user='postgres',
+        host=config['SNF_BOT_DB_HOST'],
+        password=config['SNF_BOT_DB_PASS']
+    )
+    print("Connection successful")
+    succesfull_connect = True
+except:
+    print("Error during open DB")
+    raise Exception
+
+
+
 tg_token = config['SNF_BOT_TELEGRAM_TOKEN']
 bot = telebot.TeleBot(tg_token, parse_mode=None)
 vk_token = config['SNF_BOT_VK_TOKEN']  # TODO: move to DB
@@ -31,8 +41,9 @@ def init_session():
     return vk_api
 
 
-database = []
 
+
+database = dict()
 
 @bot.message_handler(commands=['start', 'menu'])
 def main(message):
@@ -49,19 +60,20 @@ def main(message):
 @bot.message_handler(content_types=['text'])
 def text_parse(message):
     if message.text == "Register new link":
+        global database
+        database = dict()
         new_link(message)
-    elif message.text == "List of your links":
-        if not database:
-            bot.send_message(message.chat.id, "No links")
-        else:
-            list_message = "Your active links are: \n"
-            for num, link in enumerate(database):
-                new_line = f"{num+1}) {link['tg_channel_name']} - {link['vk_link']} \n"
-                list_message = list_message + new_line
-                #list_message = list_message + link['tg_channel_name'] + ' - ' +  link['vk_link'] + "\n"
-            bot.send_message(message.chat.id, list_message)
     elif message.text == "Delete existing link":
         delete_link(message)
+    elif message.text == "List of your links":
+        with connection as db:
+            cursor = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            answer_message = db_funcs.get_all_connections(cursor, message.from_user.id)
+            if answer_message:
+                bot.send_message(message.chat.id, answer_message)
+            else:
+                bot.send_message(message.chat.id, "There are no links")
+            cursor.close()
 
 
 def new_link(message):
@@ -123,16 +135,18 @@ def forward_photo(message):
 
 
 def get_channel_name(message):
-    database.append(dict())
-    database[-1]['tg_channel_name'] = message.text
+    database['channel_name'] = message.text
     bot.send_message(message.chat.id, "Please, show me vk link")
     bot.register_next_step_handler(message, get_vk_link)
 
 
 def get_vk_link(message):
-    database[-1]['vk_link'] = message.text
-    print(database)
-    complete_message = "Your link successfully added!! \n Choose your action"
+    database['vk_access_token'] = message.text
+    with connection as db:
+        cursor = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        db_funcs.add_new_line(cursor, database['channel_name'], database['vk_access_token'], message.from_user.id)
+        complete_message = "Your link successfully added!! \n Choose your action"
+        cursor.close()
     bot.send_message(message.chat.id, complete_message)
 
 
