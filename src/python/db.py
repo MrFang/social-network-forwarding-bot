@@ -1,5 +1,6 @@
 from dotenv import dotenv_values
 import psycopg2
+import psycopg2.extras
 
 config = dotenv_values('.env')
 
@@ -43,6 +44,7 @@ def data_count(user_id):
         cur.close()
     return len(data)
 
+
 def add_new_record(channel_id, chat_id):
     with connection as conn:
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -50,8 +52,7 @@ def add_new_record(channel_id, chat_id):
             INSERT INTO channel_to_vk
             (channel_id, issued_by) VALUES
             (%s, %s)
-        ''', (channel_id, chat_id)
-                    )
+        ''', (channel_id, chat_id))
 
 
 def save_access_token(channel_id, access_token, chat_id):
@@ -104,6 +105,7 @@ def get_channel_name_by_id(bot, channel_id):
     channel = bot.get_chat(channel_id)
     return channel.title
 
+
 def channel_is_exist(channel_id):
     with connection as conn:
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -117,3 +119,50 @@ def channel_is_exist(channel_id):
         return True
     else:
         return False
+
+
+def get_deferred_posts(channel_id):
+    with connection as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        cur.execute('''
+            SELECT id, post_text
+            FROM deferred_posts
+            WHERE channel_id = %s
+        ''', (channel_id,))
+
+        posts = cur.fetchall()
+        ids = [post['id'] for post in posts]
+
+        if len(ids) > 0:
+            cur.execute('''
+                DELETE FROM deferred_posts
+                WHERE id IN (%s)
+            ''', (', '.join(ids),))
+
+    return [post['post_text'] for post in posts]
+
+
+def defer_post(from_channel, text):
+    with connection as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute('''
+            INSERT INTO deferred_posts
+            (channel_id, post_text) VALUES
+            (%s, %s)
+        ''', (from_channel, text))
+
+
+def get_telegram_user_by_channel_id(channel_id):
+    with connection as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        cur.execute('''
+            SELECT issued_by
+            FROM channel_to_vk
+            WHERE channel_id = %s
+        ''', (channel_id,))
+
+        user_id = cur.fetchone()['issued_by']
+
+    return user_id
