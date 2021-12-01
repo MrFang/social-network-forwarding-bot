@@ -6,7 +6,6 @@ from dotenv import dotenv_values
 import psycopg2.extras
 import requests
 import telebot
-from telebot import types
 import vk
 
 config = dotenv_values('.env')
@@ -20,23 +19,22 @@ if process_env == 'DEBUG':
 VK_AUTH_BASE_URL = 'https://oauth.vk.com/authorize?'
 tg_token = config['SNF_BOT_TELEGRAM_TOKEN']
 vk_app_id = config['SNF_BOT_VK_APP_ID']
-vk_token = config['SNF_BOT_VK_TOKEN']  # TODO: move to DB
 vk_token_wrong = 'e0bb9661300067cbac41606ea905c2f49aa7db5d5e0e14f34fa31207283c96e38314d9dc59f2e07b17341'  # noqa E501
 bot = telebot.TeleBot(tg_token, parse_mode=None)
 
 
-def init_session():
-    session = vk.Session(access_token=vk_token)
+def init_session(token):
+    session = vk.Session(access_token=token)
     vk_api = vk.API(session,  v='5.131')
     return vk_api
 
 
 @bot.message_handler(commands=['start', 'menu'])
 def main(message):
-    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    register_key = types.KeyboardButton("Register new link")
-    delete_key = types.KeyboardButton("Delete existing link")
-    list_key = types.KeyboardButton("List of your links")
+    keyboard = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
+    register_key = telebot.types.KeyboardButton("Register new link")
+    delete_key = telebot.types.KeyboardButton("Delete existing link")
+    list_key = telebot.types.KeyboardButton("List of your links")
     keyboard.add(register_key)
     keyboard.add(delete_key)
     keyboard.add(list_key)
@@ -68,14 +66,27 @@ def text_parse(message):
 
 
 def new_link(message):
-    message_one = "Please, show me title of the channel you want to repost"
-    bot.send_message(message.chat.id, message_one)
+    invitation = 'Please, show me title of the channel you want to repost' \
+        ' in format @<channel_name>'
+    bot.send_message(message.chat.id, invitation)
     bot.register_next_step_handler(message, get_channel_name)
 
 
 @bot.channel_post_handler(func=lambda m: True)
 def forward_text(message):
-    vk_api = init_session()
+    channel_id = message.chat.id
+
+    with db.connection as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute('''
+            SELECT vk_access_token
+            FROM channel_to_vk
+            WHERE channel_id = %s
+        ''', (channel_id,))
+        token = cur.fetchone()['vk_access_token']
+
+    vk_api = init_session(token)
+
     try:
         vk_api.wall.post(message=message.text)
     except vk.exceptions.VkAPIError as e:
@@ -161,7 +172,6 @@ def delete_link(message):
 
 def delete_current_link(message):
     if int(message.text) <= len(database):
-        del database[int(message.text) - 1]
         bot.send_message(
             message.chat.id,
             "Successfully deleted\n Choose your action"

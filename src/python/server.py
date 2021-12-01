@@ -1,4 +1,4 @@
-from db import connection
+import db
 import bottle
 import psycopg2.extras
 
@@ -26,7 +26,7 @@ def finish_register():
         state = bottle.request.query.state
         access_token = bottle.request.query.access_token
         [channel_id, user_id] = [int(i) for i in state.split('_')]
-        with connection as conn:
+        with db.connection as conn:
             cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             cur.execute('''
                 SELECT id
