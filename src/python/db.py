@@ -26,5 +26,17 @@ def get_all_connections(cur, user_id):
         return False
     for num, link in enumerate(data):
         message += f"{num+1}) " \
-            "{link['channel_id']} - {link['vk_access_token']}\n"
+            f"{link['channel_id']} - {link['vk_access_token']}\n"
     return message
+
+
+def get_vk_auth_token(channel_id):
+    with connection as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute('''
+            SELECT vk_access_token
+            FROM channel_to_vk
+            WHERE channel_id = %s
+        ''', (channel_id,))
+        token = cur.fetchone()['vk_access_token']
+    return token

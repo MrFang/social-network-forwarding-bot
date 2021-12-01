@@ -19,7 +19,6 @@ if process_env == 'DEBUG':
 VK_AUTH_BASE_URL = 'https://oauth.vk.com/authorize?'
 tg_token = config['SNF_BOT_TELEGRAM_TOKEN']
 vk_app_id = config['SNF_BOT_VK_APP_ID']
-vk_token_wrong = 'e0bb9661300067cbac41606ea905c2f49aa7db5d5e0e14f34fa31207283c96e38314d9dc59f2e07b17341'  # noqa E501
 bot = telebot.TeleBot(tg_token, parse_mode=None)
 
 
@@ -74,18 +73,7 @@ def new_link(message):
 
 @bot.channel_post_handler(func=lambda m: True)
 def forward_text(message):
-    channel_id = message.chat.id
-
-    with db.connection as conn:
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute('''
-            SELECT vk_access_token
-            FROM channel_to_vk
-            WHERE channel_id = %s
-        ''', (channel_id,))
-        token = cur.fetchone()['vk_access_token']
-
-    vk_api = init_session(token)
+    vk_api = init_session(db.get_vk_auth_token(message.chat.id))
 
     try:
         vk_api.wall.post(message=message.text)
@@ -130,7 +118,7 @@ def forward_photo(message):
     filename = download_link.split('/')[-1]
     download_response = requests.get(download_link,  allow_redirects=True)
 
-    vk_api = init_session()
+    vk_api = init_session(db.get_vk_auth_token(message.chat.id))
     vk_photo_server = vk_api.photos.getWallUploadServer()
     upload_url = vk_photo_server['upload_url']
     open(filename, 'wb').write(download_response.content)
@@ -158,6 +146,7 @@ def get_channel_name(message):
             'This channel does not exists. Try again'
         )
         return
+
     with db.connection as conn:
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute('''
@@ -166,11 +155,45 @@ def get_channel_name(message):
             (%s, %s)
         ''', (channel.id, message.chat.id))
 
-        vk_auth_url = get_vk_auth_url(channel.id, message.chat.id)
+        vk_auth_url = get_vk_auth_url(channel.id)
     bot.send_message(
         message.chat.id,
-        f'Please, log in to VK via link: {vk_auth_url}'
+        f'Please, log in to VK via link: {vk_auth_url}. '
+        'Then give me url from your browser addres field'
     )
+    bot.register_next_step_handler(message, parse_vk_auth_url)
+
+
+def parse_vk_auth_url(message):
+    hash = message.text.split('#')[1]
+    params = hash.split('&')
+    data = {}
+
+    for param in params:
+        if param.startswith('access_token='):
+            data['access_token'] = param.split('=')[1]
+
+        if param.startswith('state='):
+            data['channel_id'] = int(param.split('=')[1])
+
+    with db.connection as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute('''
+            SELECT id
+            FROM channel_to_vk
+            WHERE channel_id = %s AND issued_by = %s
+            ORDER BY issued_at DESC
+            LIMIT 1
+        ''', (data['channel_id'], message.chat.id))
+        record_id = cur.fetchone()['id']
+
+        cur.execute('''
+            UPDATE channel_to_vk
+            SET vk_access_token = %s
+            WHERE id = %s
+        ''', (data['access_token'], record_id))
+
+    bot.send_message(message.chat.id, 'Registration completed. Thank you!')
 
 
 def delete_link(message):
@@ -192,13 +215,12 @@ def delete_current_link(message):
         )
 
 
-def get_vk_auth_url(channel_id, user_id):
-    # TODO: Move redirect_url to environment
+def get_vk_auth_url(channel_id):
     return f'{VK_AUTH_BASE_URL}' \
         f'client_id={vk_app_id}' \
         'display=page&' \
-        'redirect_uri=http://localhost:8443/vk_auth&' \
+        'redirect_uri=https://oauth.vk.com/blank.html&' \
         'scope=wall,photos&' \
         'response_type=token&' \
-        f'state={channel_id}_{user_id}&' \
+        f'state={channel_id}&' \
         'v=5.131'
