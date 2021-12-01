@@ -22,6 +22,9 @@ tg_token = config['SNF_BOT_TELEGRAM_TOKEN']
 vk_app_id = config['SNF_BOT_VK_APP_ID']
 bot = telebot.TeleBot(tg_token, parse_mode=None)
 
+no_keyboard = telebot.types.ReplyKeyboardRemove()
+keyboard = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
+
 
 def init_session(token):
     session = vk.Session(access_token=token)
@@ -31,7 +34,6 @@ def init_session(token):
 
 @bot.message_handler(commands=['start', 'menu'])
 def main(message):
-    keyboard = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
     register_key = telebot.types.KeyboardButton("Register new link")
     delete_key = telebot.types.KeyboardButton("Delete existing link")
     list_key = telebot.types.KeyboardButton("List of your links")
@@ -48,25 +50,17 @@ def text_parse(message):
     elif message.text == "Delete existing link":
         delete_link(message)
     elif message.text == "List of your links":
-        with db.connection as conn:
-            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-            answer_message = db.get_all_connections(
-                cursor,
-                message.from_user.id
-            )
-
-            if answer_message:
-                bot.send_message(message.chat.id, answer_message)
-            else:
-                bot.send_message(message.chat.id, "There are no links")
-
-            cursor.close()
+        answer_message = db.get_all_connections(message.from_user.id)
+        if answer_message:
+            bot.send_message(message.chat.id, answer_message)
+        else:
+            bot.send_message(message.chat.id, "There are no links")
 
 
 def new_link(message):
     invitation = 'Please, show me title of the channel you want to repost' \
         ' in format @<channel_name>'
-    bot.send_message(message.chat.id, invitation)
+    bot.send_message(message.chat.id, invitation, reply_markup=no_keyboard)
     bot.register_next_step_handler(message, get_channel_name)
 
 
@@ -146,29 +140,25 @@ def get_channel_name(message):
     except telebot.apihelper.ApiTelegramException:
         bot.send_message(
             message.chat.id,
-            'This channel does not exists. Try again'
+            'This channel does not exists. Try again',
+            reply_markup=keyboard
         )
         return
 
     if user_status in AVAILABLE_STATUSES_IN_CHANNELS:
-        with db.connection as conn:
-            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-            cur.execute('''
-                INSERT INTO channel_to_vk
-                (channel_id, issued_by) VALUES
-                (%s, %s)
-            ''', (channel.id, message.chat.id))
-
-            vk_auth_url = get_vk_auth_url(channel.id)
+        db.add_new_record(channel.id, message.chat.id)
+        vk_auth_url = get_vk_auth_url(channel.id)
 
         bot.send_message(
             message.chat.id,
-            f'Please, log in to VK via link: {vk_auth_url}. '
-            'Then give me url from your browser addres field'
+            f'Please, log in to VK via <a href="{vk_auth_url}"><b>link</b></a>. \n'
+            'Then give me url from your browser address field',
+            reply_markup=no_keyboard,
+            parse_mode="HTML"
         )
         bot.register_next_step_handler(message, parse_vk_auth_url)
     else:
-        bot.send_message(message.chat.id, "You are not administrator of this channel")
+        bot.send_message(message.chat.id, "You are not administrator of this channel", reply_markup=keyboard)
 
 
 def parse_vk_auth_url(message):
@@ -183,44 +173,40 @@ def parse_vk_auth_url(message):
         if param.startswith('state='):
             data['channel_id'] = int(param.split('=')[1])
 
-    with db.connection as conn:
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute('''
-            SELECT id
-            FROM channel_to_vk
-            WHERE channel_id = %s
-                AND issued_by = %s
-                AND vk_access_token IS NULL
-            ORDER BY issued_at DESC
-            LIMIT 1
-        ''', (data['channel_id'], message.chat.id))
-        record_id = cur.fetchone()['id']
+    db.save_access_token(data['channel_id'], data['access_token'], message.chat.id)
 
-        cur.execute('''
-            UPDATE channel_to_vk
-            SET vk_access_token = %s
-            WHERE id = %s
-        ''', (data['access_token'], record_id))
-
-    bot.send_message(message.chat.id, 'Registration completed. Thank you!')
+    bot.send_message(message.chat.id, 'Registration completed. Thank you!', reply_markup=keyboard)
 
 
 def delete_link(message):
-    message_one = "Please, show me number of the channel you want to delete"
-    bot.send_message(message.chat.id, message_one)
-    bot.register_next_step_handler(message, delete_current_link)
+    list_of_links = db.get_all_connections(message.from_user.id)
+    if not list_of_links:
+        no_links_message = "You have not any link. To delete link, you need to create link..."
+        bot.send_message(message.chat.id, no_links_message, reply_markup=keyboard)
+    else:
+        delete_choose_message = f"You have this links: \n {list_of_links} \n " \
+                                f"Please, show me number of the channel you want to delete"
+        bot.send_message(message.chat.id, delete_choose_message, reply_markup=no_keyboard)
+        bot.register_next_step_handler(message, delete_current_link)
 
 
 def delete_current_link(message):
-    if int(message.text) <= len(database):
-        bot.send_message(
-            message.chat.id,
-            "Successfully deleted\n Choose your action"
-        )
+    data_count = db.data_count(message.from_user.id)
+    if int(message.text) <= data_count:
+        try:
+            db.delete_line(message.from_user.id, int(message.text))
+            bot.send_message(
+                message.chat.id,
+                "Successfully deleted \n Choose your action",
+                reply_markup=keyboard
+            )
+        except:
+            bot.send_message(message.chat.id, "Error during deleting", reply_markup=keyboard)
     else:
         bot.send_message(
             message.chat.id,
-            "You was wrong in your number. Please, try again"
+            "You was wrong in your number. Please, try again",
+            reply_markup=keyboard
         )
 
 
@@ -233,3 +219,9 @@ def get_vk_auth_url(channel_id):
         'response_type=token&' \
         f'state={channel_id}&' \
         'v=5.131'
+
+def get_channel_creator(channel_id):
+    admins = bot.get_chat_administrators(channel_id)
+    for admin in admins:
+        if admin.status == 'creator':
+            return admin.user.id
