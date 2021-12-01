@@ -10,6 +10,7 @@ import vk
 
 config = dotenv_values('.env')
 process_env = config.get('PROCESS_ENV', 'PRODUCTION')
+AVAILABLE_STATUSES_IN_CHANNELS = ('creator', 'administrator')
 
 if process_env == 'DEBUG':
     vk.logger.setLevel(logging.DEBUG)
@@ -152,25 +153,29 @@ def forward_photo(message):
 def get_channel_name(message):
     try:
         channel = bot.get_chat(message.text)
+        user_status = bot.get_chat_member(channel.id, message.from_user.id).status
     except telebot.apihelper.ApiTelegramException:
         bot.send_message(
             message.chat.id,
             'This channel does not exists. Try again'
         )
         return
-    with db.connection as conn:
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute('''
-            INSERT INTO channel_to_vk
-            (channel_id, issued_by) VALUES
-            (%s, %s)
-        ''', (channel.id, message.chat.id))
+    if user_status in AVAILABLE_STATUSES_IN_CHANNELS:
+        with db.connection as conn:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cur.execute('''
+                INSERT INTO channel_to_vk
+                (channel_id, issued_by) VALUES
+                (%s, %s)
+            ''', (channel.id, message.chat.id))
 
-        vk_auth_url = get_vk_auth_url(channel.id, message.chat.id)
-    bot.send_message(
-        message.chat.id,
-        f'Please, log in to VK via link: {vk_auth_url}'
-    )
+            vk_auth_url = get_vk_auth_url(channel.id, message.chat.id)
+        bot.send_message(
+            message.chat.id,
+            f'Please, log in to VK via link: {vk_auth_url}'
+        )
+    else:
+        bot.send_message(message.chat.id, "You are not administrator of this channel")
 
 
 def delete_link(message):
