@@ -28,22 +28,19 @@ except:
     print("Error during open DB")
     raise Exception
 
-
-
 tg_token = config['SNF_BOT_TELEGRAM_TOKEN']
 bot = telebot.TeleBot(tg_token, parse_mode=None)
 vk_token = config['SNF_BOT_VK_TOKEN']  # TODO: move to DB
-vk_token_wrong = 'e0bb9661300067cbac41606ea905c2f49aa7db5d5e0e14f34fa31207283c96e38314d9dc59f2e07b17341'
+
 
 def init_session():
-    session = vk.Session(access_token=vk_token_wrong)
-    vk_api = vk.API(session,  v='5.131')
+    session = vk.Session(access_token=vk_token)
+    vk_api = vk.API(session, v='5.131')
     return vk_api
 
 
-
-
 database = dict()
+
 
 @bot.message_handler(commands=['start', 'menu'])
 def main(message):
@@ -95,34 +92,50 @@ def forward_text(message):
 def process_error(e):
     if e.code == 5:
         # wrong_token
-        return vk.API(vk.Session(access_token=vk_token),  v='5.131')
+        return vk.API(vk.Session(access_token=vk_token), v='5.131')
     if e.code == 6:
         time.sleep(0.05)
         return init_session()
     if e.code == 7:
-#         no permission
+        #         no permission
         return init_session()
     if e.code == 10:
-#         inner mistake
+        #         inner mistake
         return init_session()
     if e.code == 14:
         # capcha
         return init_session()
 
 
+def download_file(file_id, dest_folder):
+    if not os.path.exists(dest_folder):
+        os.makedirs(dest_folder)
+
+    source_path = bot.get_file(file_id).file_path
+    download_link = f'https://api.telegram.org/file/bot{tg_token}/{source_path}'
+    filename = download_link.split('/')[-1]
+    dest_path = os.path.join(dest_folder, filename)
+
+    download_response = requests.get(download_link, stream=True)
+    if download_response.ok:
+        open(dest_path, 'wb').write(download_response.content)
+    return dest_path
+
+
 @bot.channel_post_handler(content_types=["photo"])
 def forward_photo(message):
     file_id = message.photo[-1].file_id
-    file_path = bot.get_file(file_id).file_path
-    download_link = f'https://api.telegram.org/file/bot{tg_token}/{file_path}'
+    # file_path = bot.get_file(file_id).file_path
+    # download_link = f'https://api.telegram.org/file/bot{tg_token}/{file_path}'
 
-    filename = download_link.split('/')[-1]
-    download_response = requests.get(download_link,  allow_redirects=True)
+    # filename = download_link.split('/')[-1]
+    filename = download_file(file_id, 'tmp')
+    # download_response = requests.get(download_link, allow_redirects=True)
 
     vk_api = init_session()
     vk_photo_server = vk_api.photos.getWallUploadServer()
     upload_url = vk_photo_server['upload_url']
-    open(filename, 'wb').write(download_response.content)
+    # open(filename, 'wb').write(download_response.content)
     img = {'photo': (filename, open(filename, 'rb'))}
 
     resp = requests.post(upload_url, files=img).json()
@@ -165,5 +178,3 @@ def delete_current_link(message):
 
 
 bot.infinity_polling()
-
-
