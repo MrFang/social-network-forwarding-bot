@@ -1,3 +1,21 @@
+from dotenv import dotenv_values
+import psycopg2
+
+config = dotenv_values('.env')
+
+try:
+    connection = psycopg2.connect(
+        database='postgres',
+        user='postgres',
+        host=config['SNF_BOT_DB_HOST'],
+        password=config['SNF_BOT_DB_PASS']
+    )
+    print("Connection successful")
+except Exception:
+    print("Error during open DB")
+    raise Exception
+
+
 def get_all_connections(cur, user_id):
     cur.execute("SELECT * FROM channel_to_vk WHERE issued_by = %s",
                 (user_id, )
@@ -10,10 +28,3 @@ def get_all_connections(cur, user_id):
         message += f"{num+1}) " \
             "{link['channel_id']} - {link['vk_access_token']}\n"
     return message
-
-
-def add_new_line(cur, channel_id, vk_access_token, user_id):
-    cur.execute('''
-        INSERT INTO channel_to_vk
-        (channel_id, vk_access_token, issued_by) VALUES
-        (%s, %s, %s)''', (channel_id, vk_access_token, user_id))
