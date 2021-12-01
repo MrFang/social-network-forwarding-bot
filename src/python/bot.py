@@ -108,7 +108,6 @@ def process_error(error, from_channel, post_text):
 
 def download_file(file_id, dest_folder):
     if not os.path.exists(dest_folder):
-        vk.logger.warn('MAKEDIRS')
         os.makedirs(dest_folder)
 
     source_path = bot.get_file(file_id).file_path
