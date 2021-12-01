@@ -44,13 +44,14 @@ def init_session():
 
 
 database = dict()
+del_keyboard = telebot.types.ReplyKeyboardRemove()
+keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
 
 @bot.message_handler(commands=['start', 'menu'])
 def main(message):
-    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    register_key = types.KeyboardButton("Register new link")
-    delete_key = types.KeyboardButton("Delete existing link")
-    list_key = types.KeyboardButton("List of your links")
+    register_key = types.KeyboardButton("🖇 Register new link")
+    delete_key = types.KeyboardButton("✂️ Delete existing link")
+    list_key = types.KeyboardButton("📝 List of your links")
     keyboard.add(register_key)
     keyboard.add(delete_key)
     keyboard.add(list_key)
@@ -59,26 +60,26 @@ def main(message):
 
 @bot.message_handler(content_types=['text'])
 def text_parse(message):
-    if message.text == "Register new link":
+    if message.text == "🖇 Register new link":
         global database
         database = dict()
         new_link(message)
-    elif message.text == "Delete existing link":
+    elif message.text == "✂️ Delete existing link":
         delete_link(message)
-    elif message.text == "List of your links":
+    elif message.text == "📝 List of your links":
         with connection as db:
             cursor = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             answer_message = db_funcs.get_all_connections(cursor, message.from_user.id)
             if answer_message:
-                bot.send_message(message.chat.id, answer_message)
+                bot.send_message(message.chat.id, answer_message, reply_markup=keyboard)
             else:
-                bot.send_message(message.chat.id, "There are no links")
+                bot.send_message(message.chat.id, "There are no links", reply_markup=keyboard)
             cursor.close()
 
 
 def new_link(message):
     message_one = "Please, show me title of the channel you want to repost"
-    bot.send_message(message.chat.id, message_one)
+    bot.send_message(message.chat.id, message_one, reply_markup=del_keyboard)
     bot.register_next_step_handler(message, get_channel_name)
 
 
@@ -136,8 +137,12 @@ def forward_photo(message):
 
 def get_channel_name(message):
     database['channel_name'] = message.text
-    bot.send_message(message.chat.id, "Please, show me vk link")
-    bot.register_next_step_handler(message, get_vk_link)
+    if not is_channel_admin(message.from_user.id, message.text):
+        not_admin_message = "Вы не являетесь администратором этого канала"
+        bot.send_message(message.chat.id, not_admin_message, reply_markup=keyboard)
+    else:
+        bot.send_message(message.chat.id, "Please, show me vk link", reply_markup=del_keyboard)
+        bot.register_next_step_handler(message, get_vk_link)
 
 
 def get_vk_link(message):
@@ -145,24 +150,27 @@ def get_vk_link(message):
     with connection as db:
         cursor = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         db_funcs.add_new_line(cursor, database['channel_name'], database['vk_access_token'], message.from_user.id)
-        complete_message = "Your link successfully added!! \n Choose your action"
+        complete_message = "Your link successfully added!! 🎉🎉🎉 \n Choose your action"
         cursor.close()
-    bot.send_message(message.chat.id, complete_message)
+    bot.send_message(message.chat.id, complete_message, reply_markup=keyboard)
 
 
 def delete_link(message):
     message_one = "Please, show me number of the channel you want to delete"
-    bot.send_message(message.chat.id, message_one)
+    bot.send_message(message.chat.id, message_one, reply_markup=del_keyboard)
     bot.register_next_step_handler(message, delete_current_link)
 
 
 def delete_current_link(message):
     if int(message.text) <= len(database):
         del database[int(message.text) - 1]
-        bot.send_message(message.chat.id, "Successfully deleted \n Choose your action")
+        bot.send_message(message.chat.id, "Successfully deleted 🎉🎉🎉 \n Choose your action", reply_markup=keyboard)
     else:
-        bot.send_message(message.chat.id, "You was wrong in your number. Please, try again")
+        bot.send_message(message.chat.id, "You was wrong in your number. Please, try again", reply_markup=keyboard)
 
+
+def is_channel_admin(user_id, channel_id):
+    return True
 
 bot.infinity_polling()
 
