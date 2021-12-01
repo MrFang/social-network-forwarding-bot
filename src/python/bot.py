@@ -10,6 +10,7 @@ import vk
 
 config = dotenv_values('.env')
 process_env = config.get('PROCESS_ENV', 'PRODUCTION')
+AVAILABLE_STATUSES_IN_CHANNELS = ('creator', 'administrator')
 
 if process_env == 'DEBUG':
     vk.logger.setLevel(logging.DEBUG)
@@ -140,60 +141,33 @@ def forward_photo(message):
 def get_channel_name(message):
     try:
         channel = bot.get_chat(message.text)
+        user_status = bot.get_chat_member(channel.id, message.from_user.id).status
     except telebot.apihelper.ApiTelegramException:
         bot.send_message(
             message.chat.id,
             'This channel does not exists. Try again'
         )
         return
+    
+    if user_status in AVAILABLE_STATUSES_IN_CHANNELS:
+        with db.connection as conn:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cur.execute('''
+                INSERT INTO channel_to_vk
+                (channel_id, issued_by) VALUES
+                (%s, %s)
+            ''', (channel.id, message.chat.id))
 
-    with db.connection as conn:
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute('''
-            INSERT INTO channel_to_vk
-            (channel_id, issued_by) VALUES
-            (%s, %s)
-        ''', (channel.id, message.chat.id))
-
-        vk_auth_url = get_vk_auth_url(channel.id)
-    bot.send_message(
-        message.chat.id,
-        f'Please, log in to VK via link: {vk_auth_url}. '
-        'Then give me url from your browser addres field'
-    )
-    bot.register_next_step_handler(message, parse_vk_auth_url)
-
-
-def parse_vk_auth_url(message):
-    hash = message.text.split('#')[1]
-    params = hash.split('&')
-    data = {}
-
-    for param in params:
-        if param.startswith('access_token='):
-            data['access_token'] = param.split('=')[1]
-
-        if param.startswith('state='):
-            data['channel_id'] = int(param.split('=')[1])
-
-    with db.connection as conn:
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute('''
-            SELECT id
-            FROM channel_to_vk
-            WHERE channel_id = %s AND issued_by = %s
-            ORDER BY issued_at DESC
-            LIMIT 1
-        ''', (data['channel_id'], message.chat.id))
-        record_id = cur.fetchone()['id']
-
-        cur.execute('''
-            UPDATE channel_to_vk
-            SET vk_access_token = %s
-            WHERE id = %s
-        ''', (data['access_token'], record_id))
-
-    bot.send_message(message.chat.id, 'Registration completed. Thank you!')
+            vk_auth_url = get_vk_auth_url(channel.id, message.chat.id)
+        
+        bot.send_message(
+            message.chat.id,
+            f'Please, log in to VK via link: {vk_auth_url}. '
+            'Then give me url from your browser addres field'
+        )
+        bot.register_next_step_handler(message, parse_vk_auth_url)
+    else:
+        bot.send_message(message.chat.id, "You are not administrator of this channel")
 
 
 def delete_link(message):
