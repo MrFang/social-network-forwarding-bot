@@ -97,18 +97,27 @@ def forward_text(message):
 def process_error(e):
     if e.code == 5:
         # wrong_token
+        # TODO:
+        # - Сохранить пост в базу
+        #   (лучше так, потому что их, потенциально, может быть несколько,
+        #   до того, как пользователь обновит токен)
+        # - Отправить пользователю сообщение с просьбой перелогинится по-новой
+        # - После перелогина отправить все отложенные посты
         return vk.API(vk.Session(access_token=vk_token),  v='5.131')
     if e.code == 6:
         time.sleep(0.05)
         return init_session()
     if e.code == 7:
         # no permission
+        # TODO: аналогично пункту с неправильным токеном
         return init_session()
     if e.code == 10:
         # inner mistake
         return init_session()
     if e.code == 14:
         # capcha
+        # TODO: Аналогично пункту с неправильным токеном,
+        # но, вместо просьбы перелогина, отправлять просьбу пройти капчу
         return init_session()
 
 
