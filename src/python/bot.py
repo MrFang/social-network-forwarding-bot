@@ -20,11 +20,23 @@ if process_env == 'DEBUG':
 VK_AUTH_BASE_URL = 'https://oauth.vk.com/authorize?'
 tg_token = config['SNF_BOT_TELEGRAM_TOKEN']
 vk_app_id = config['SNF_BOT_VK_APP_ID']
-vk_token_k = '03210b531557fb25665bbe3b37a6eabcc66dd71b1088bb7009ac413ed98fcb76adb0e84c9c967318c6245'
 bot = telebot.TeleBot(tg_token, parse_mode=None)
 
 no_keyboard = telebot.types.ReplyKeyboardRemove()
+
 keyboard = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
+register_key = telebot.types.KeyboardButton("🖇 Register new link")
+delete_key = telebot.types.KeyboardButton("✂️ Delete existing link")
+list_key = telebot.types.KeyboardButton("📝 List of your links")
+keyboard.add(register_key)
+keyboard.add(delete_key)
+keyboard.add(list_key)
+
+social_network_keyboard = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
+vk_key = telebot.types.KeyboardButton("🆕 VK")
+inst_key = telebot.types.KeyboardButton("🔜 Instagram")
+social_network_keyboard.row(vk_key, inst_key)
+
 
 
 def init_session(token):
@@ -35,28 +47,28 @@ def init_session(token):
 
 @bot.message_handler(commands=['start', 'menu'])
 def main(message):
-    register_key = telebot.types.KeyboardButton("Register new link")
-    delete_key = telebot.types.KeyboardButton("Delete existing link")
-    list_key = telebot.types.KeyboardButton("List of your links")
-    keyboard.add(register_key)
-    keyboard.add(delete_key)
-    keyboard.add(list_key)
     bot.send_message(message.chat.id, "Choose action", reply_markup=keyboard)
 
 
 @bot.message_handler(content_types=['text'])
 def text_parse(message):
-    if message.text == "Register new link":
-        new_link(message)
-    elif message.text == "Delete existing link":
+    if message.text == "🖇 Register new link":
+        choose_message = "Please, choose the social network you want to connect with your telegram channel"
+        bot.send_message(message.chat.id, choose_message, reply_markup=social_network_keyboard)
+    elif message.text == "✂️ Delete existing link":
         delete_link(message)
-    elif message.text == "List of your links":
-        answer_message = db.get_all_connections(message.from_user.id)
+    elif message.text == "📝 List of your links":
+        answer_message = db.get_all_connections(bot, message.from_user.id)
         if answer_message:
             bot.send_message(message.chat.id, answer_message)
         else:
             bot.send_message(message.chat.id, "There are no links")
-
+    elif message.text == "🆕 VK":
+        new_link(message)
+    elif message.text == "🔜 Instagram":
+        inst_message = "Sorry, now we are waiting the approve from Instagram to use our bot \n" \
+                      "This function will be soon!"
+        bot.send_message(message.chat.id, inst_message, reply_markup=keyboard)
 
 def new_link(message):
     invitation = 'Please, show me title of the channel you want to repost' \
@@ -154,12 +166,19 @@ def forward_video(message):
 
 
 def get_channel_name(message):
+    if not message.text.startswith('@'):
+        print(message.text)
+        bot.send_message(message.chat.id, "Wrong format of channel name, start it from @", reply_markup=keyboard)
+        return
     try:
         channel = bot.get_chat(message.text)
         user_status = bot.get_chat_member(
             channel.id,
             message.from_user.id
         ).status
+        if db.channel_is_exist(channel.id):
+            bot.send_message(message.chat.id, "This channel is already linked", reply_markup=keyboard)
+            return
     except telebot.apihelper.ApiTelegramException:
         bot.send_message(
             message.chat.id,
@@ -197,12 +216,11 @@ def parse_vk_auth_url(message):
             data['channel_id'] = int(param.split('=')[1])
 
     db.save_access_token(data['channel_id'], data['access_token'], message.chat.id)
-
-    bot.send_message(message.chat.id, 'Registration completed. Thank you!', reply_markup=keyboard)
+    bot.send_message(message.chat.id, 'Registration completed. 🎉 \nThank you!', reply_markup=keyboard)
 
 
 def delete_link(message):
-    list_of_links = db.get_all_connections(message.from_user.id)
+    list_of_links = db.get_all_connections(bot, message.from_user.id)
     if not list_of_links:
         no_links_message = "You have not any link. To delete link, you need to create link..."
         bot.send_message(message.chat.id, no_links_message, reply_markup=keyboard)
@@ -220,7 +238,7 @@ def delete_current_link(message):
             db.delete_line(message.from_user.id, int(message.text))
             bot.send_message(
                 message.chat.id,
-                "Successfully deleted \n Choose your action",
+                "Successfully deleted 🎉 \n Choose your action",
                 reply_markup=keyboard
             )
         except:

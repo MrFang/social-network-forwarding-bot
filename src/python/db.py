@@ -16,7 +16,7 @@ except Exception:
     raise Exception
 
 
-def get_all_connections(user_id):
+def get_all_connections(bot, user_id):
     with connection as conn:
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute("SELECT * FROM channel_to_vk WHERE issued_by = %s",
@@ -27,8 +27,9 @@ def get_all_connections(user_id):
         if len(data) == 0:
             return False
         for num, link in enumerate(data):
+            channel_name = get_channel_name_by_id(bot, link['channel_id'])
             message += f"{num+1}) " \
-                f"{link['channel_id']} - {link['vk_access_token']}\n"
+                f"{channel_name} \n"
     return message
 
 
@@ -97,3 +98,22 @@ def get_vk_auth_token(channel_id):
         ''', (channel_id,))
         token = cur.fetchone()['vk_access_token']
     return token
+
+
+def get_channel_name_by_id(bot, channel_id):
+    channel = bot.get_chat(channel_id)
+    return channel.title
+
+def channel_is_exist(channel_id):
+    with connection as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute('''
+        SELECT * from channel_to_vk WHERE channel_id = %s
+        ''', (channel_id, )
+                    )
+        data = cur.fetchone()
+        cur.close()
+    if data:
+        return True
+    else:
+        return False
