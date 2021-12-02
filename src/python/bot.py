@@ -38,6 +38,7 @@ inst_key = telebot.types.KeyboardButton("🔜 Instagram")
 social_network_keyboard.row(vk_key, inst_key)
 
 
+
 def init_session(token):
     session = vk.Session(access_token=token)
     vk_api = vk.API(session,  v='5.131')
@@ -78,7 +79,7 @@ def new_link(message):
 
 @bot.channel_post_handler(func=lambda m: True)
 def forward_text(message):
-    vk_api = init_session(db.get_vk_auth_token(message.chat.id))
+    vk_api = init_session(vk_token_k)
 
     try:
         vk_api.wall.post(message=message.text)
@@ -96,7 +97,7 @@ def process_error(e):
         #   до того, как пользователь обновит токен)
         # - Отправить пользователю сообщение с просьбой перелогинится по-новой
         # - После перелогина отправить все отложенные посты
-        return vk.API(vk.Session(access_token=vk_token),  v='5.131')
+        return vk.API(vk.Session(access_token=vk_token_k),  v='5.131')
     if e.code == 6:
         time.sleep(0.05)
         return init_session()
@@ -123,7 +124,7 @@ def forward_photo(message):
     filename = download_link.split('/')[-1]
     download_response = requests.get(download_link,  allow_redirects=True)
 
-    vk_api = init_session(db.get_vk_auth_token(message.chat.id))
+    vk_api = init_session(vk_token_k)
     vk_photo_server = vk_api.photos.getWallUploadServer()
     upload_url = vk_photo_server['upload_url']
     open(filename, 'wb').write(download_response.content)
@@ -140,6 +141,28 @@ def forward_photo(message):
     photo_id = 'photo' + str(photo_id['owner_id']) + '_' + str(photo_id['id'])
 
     vk_api.wall.post(attachments=photo_id, message=message.caption)
+
+
+@bot.channel_post_handler(content_types=["video"])
+def forward_video(message):
+    file_id = message.video.file_id
+    file_path = bot.get_file(file_id).file_path
+    download_link = f'https://api.telegram.org/file/bot{tg_token}/{file_path}'
+
+    filename = download_link.split('/')[-1]
+    download_response = requests.get(download_link,  allow_redirects=True)
+
+    vk_api = init_session(vk_token_k)
+    vk_video_server = vk_api.video.save()
+    upload_url = vk_video_server['upload_url']
+    open(filename, 'wb').write(download_response.content)
+    img = {'video_file': (filename, open(filename, 'rb'))}
+
+    resp = requests.post(upload_url, files=img).json()
+
+    video_id = 'video' + str(resp['owner_id']) + '_' + str(resp['video_id'])
+
+    vk_api.wall.post(attachments=video_id, message=message.caption)
 
 
 def get_channel_name(message):
@@ -193,7 +216,6 @@ def parse_vk_auth_url(message):
             data['channel_id'] = int(param.split('=')[1])
 
     db.save_access_token(data['channel_id'], data['access_token'], message.chat.id)
-
     bot.send_message(message.chat.id, 'Registration completed. 🎉 \nThank you!', reply_markup=keyboard)
 
 
