@@ -16,8 +16,6 @@ services:
       dockerfile: ./docker/app/Dockerfile
     volumes:
       - .:/usr/app
-    ports:
-      - 8443:8443
     depends_on:
       - db
     entrypoint: '/usr/app/wait-for-it.sh ${SNF_BOT_DB_HOST}:5432 --'
