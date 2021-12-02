@@ -63,7 +63,6 @@ def save_access_token(channel_id, access_token, chat_id):
             FROM channel_to_vk
             WHERE channel_id = %s
                 AND issued_by = %s
-                AND vk_access_token IS NULL
             ORDER BY issued_at DESC
             LIMIT 1
         ''', (channel_id, chat_id))
@@ -132,7 +131,7 @@ def get_deferred_posts(channel_id):
         ''', (channel_id,))
 
         posts = cur.fetchall()
-        ids = [post['id'] for post in posts]
+        ids = [str(post['id']) for post in posts]
 
         if len(ids) > 0:
             cur.execute('''
