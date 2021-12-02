@@ -156,13 +156,36 @@ def forward_video(message):
     vk_video_server = vk_api.video.save()
     upload_url = vk_video_server['upload_url']
     open(filename, 'wb').write(download_response.content)
-    img = {'video_file': (filename, open(filename, 'rb'))}
+    video = {'video_file': (filename, open(filename, 'rb'))}
 
-    resp = requests.post(upload_url, files=img).json()
+    resp = requests.post(upload_url, files=video).json()
 
     video_id = 'video' + str(resp['owner_id']) + '_' + str(resp['video_id'])
 
     vk_api.wall.post(attachments=video_id, message=message.caption)
+
+
+@bot.channel_post_handler(content_types=["document"])
+def forward_doc(message):
+    file_id = message.document.file_id
+    file_path = bot.get_file(file_id).file_path
+    download_link = f'https://api.telegram.org/file/bot{tg_token}/{file_path}'
+
+    filename = download_link.split('/')[-1]
+    download_response = requests.get(download_link,  allow_redirects=True)
+
+    vk_api = init_session(db.get_vk_auth_token(message.chat.id))
+    vk_docs_server = vk_api.docs.getWallUploadServer()
+    upload_url = vk_docs_server['upload_url']
+    open(filename, 'wb').write(download_response.content)
+    doc = {'file': (filename, open(filename, 'rb'))}
+
+    resp = requests.post(upload_url, files=doc).json()
+    save_res = vk_api.docs.save(file=resp['file'])
+    save_res = save_res['doc']
+    doc_id = 'doc' + str(save_res['owner_id']) + '_' + str(save_res['id'])
+
+    vk_api.wall.post(attachments=doc_id, message=message.caption)
 
 
 def get_channel_name(message):
