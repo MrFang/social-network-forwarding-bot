@@ -11,9 +11,15 @@ CREATE TABLE channel_to_vk (
 
 -- Ещё не отправленные из-за ошибок посты. Пока умеем обрабатывать только текстовые
 CREATE TABLE deferred_posts (
-    id SERIAL  PRIMARY KEY,
+    id         SERIAL PRIMARY KEY,
     channel_id BIGINT NOT NULL REFERENCES channel_to_vk(channel_id), -- id Telegram канала
     post_text  TEXT NOT NULL -- Текст поста
+);
+
+-- Пользователи, от которых мы ждём повторной ссылки с VK логином
+CREATE TABLE pending_logins (
+    id        SERIAL PRIMARY KEY,
+    user_id   BIGINT NOT NULL UNIQUE -- id Telegrm пользователя
 );
 
 COMMIT;

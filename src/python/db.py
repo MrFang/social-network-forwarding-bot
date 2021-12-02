@@ -166,3 +166,40 @@ def get_telegram_user_by_channel_id(channel_id):
         user_id = cur.fetchone()['issued_by']
 
     return user_id
+
+
+def add_pending_login(chat_id):
+    with connection as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        try:
+            cur.execute('''
+                INSERT INTO pending_logins
+                (user_id) VALUES
+                (%s)
+            ''', (chat_id,))
+        except psycopg2.IntegrityError:
+            pass
+
+
+def is_pending_login(chat_id):
+    with connection as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        cur.execute('''
+            SELECT id
+            FROM pending_logins
+            WHERE user_id = %s
+        ''', (chat_id, ))
+
+        return len(cur.fetchall()) > 0
+
+
+def delete_pending_login(chat_id):
+    with connection as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        cur.execute('''
+            DELETE FROM pending_logins
+            WHERE user_id = %s
+        ''', (chat_id, ))

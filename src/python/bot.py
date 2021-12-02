@@ -69,6 +69,12 @@ def text_parse(message):
         inst_message = "Sorry, now we are waiting the approve from Instagram to use our bot \n" \
                       "This function will be soon!"
         bot.send_message(message.chat.id, inst_message, reply_markup=keyboard)
+    else:
+        if db.is_pending_login(message.chat.id) and \
+                message.text.startswith('https://oauth.vk.com/blank.html'):
+            db.delete_pending_login(message.chat.id)
+            parse_vk_auth_url_message(message)
+
 
 def new_link(message):
     invitation = 'Please, show me title of the channel you want to repost' \
@@ -86,11 +92,9 @@ def process_error(error, from_channel, post_text):
     if error.code in [5, 7]:
         # wrong_token, no_permission
         # TODO: Обработка нетекстовых постов
-        # TODO: Пометить в базе, что мы ждём ссылки от этого пользователя
-        #       В общем хэндлере тектовых сообщений добавить ветку
-        #       для обработки этой ссылки
         db.defer_post(from_channel, post_text)
         owner_id = db.get_telegram_user_by_channel_id(from_channel)
+        db.add_pending_login(owner_id)
         bot.send_message(owner_id, 'Your token seems to be expired')
         ask_user_auth(owner_id, from_channel)
 
