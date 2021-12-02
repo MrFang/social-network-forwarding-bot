@@ -1,14 +1,21 @@
 # Social Network Forwarding bot
-1. Create file `.env` and set variables:
-`SNF_BOT_DB_PASS`, `SNF_BOT_TELEGRAM_TOKEN`, `SNF_BOT_VK_TOKEN` and `SNF_BOT_DB_HOST`.
-See example in `.env.example`
+Чтобы запустить приложение вам нужно установить следующие переменные среды
+* `SNF_BOT_DB_HOST` -- адрес базы данных, установите в `db` если запускаете приложение через docker-compose
+* `SNF_BOT_DB_PASS` -- пароль пользователя `postgres` в базе данных
+* `SNF_BOT_TELEGRAM_TOKEN` -- Telegram токен бота, которого вы хотите использовать для пересылки сообщений. Процесс получения токена описан [здесь](https://core.telegram.org/bots#creating-a-new-bot)
+* `SNF_BOT_VK_APP_ID` -- Идентификатор VK приложения. Если у вас нет своего, уставновите в `8013095`
+* `SNF_BOT_PROCESS_ENV` (необязательно) -- `DEBUG` или `PRODUCTION`. Установка в `DEBUG` включает логироваение в библиотеках. Значение по-умолчанию `PRODUCTION`
 
-### With docker
-2. Start docker containers: `docker-compose up -d`
+Установить эти переменные нужно в файле `.env`. Пример заполнения файла есть в `.env.example`
 
-### Without docker
-2. Setup PostgreSQL
-3. Install python dependencies: `pip install -r requirements.txt`
-4. Run app: `python3 src/python/app.py`
+### Запуск приложения в Docker
+1. Запустите контейнеры командой: `docker-compose up -d`
 
-In any case Init db with `src/sql/schema.sql`
+### Запуск приложения без Docker
+1. Настройте PostgresSQL. Приложение будет подключаться к базе данных `postgres` как пользователь `postgres`
+2. Установите зависимости: `pip install -r requirements.txt`
+3. запустите приложение: `python3 src/python/app.py`
+
+Инициализируйте базу скриптом `src/sql/schema.sql`. Если вы запускаете приложение через docker-compose, то это можно сделать через adminer, развёрнутый на порту `8080`
+
+Добавьте бота администраторов в канал, из которого хотите пересылать сообщения

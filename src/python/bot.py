@@ -9,7 +9,7 @@ import telebot
 import vk
 
 config = dotenv_values('.env')
-process_env = config.get('PROCESS_ENV', 'PRODUCTION')
+process_env = config.get('SNF_BOT_PROCESS_ENV', 'PRODUCTION')
 AVAILABLE_STATUSES_IN_CHANNELS = ('creator', 'administrator')
 
 if process_env == 'DEBUG':
@@ -189,7 +189,7 @@ def forward_doc(message):
     doc = {'file': (filename, open(filename, 'rb'))}
 
     resp = requests.post(upload_url, files=doc).json()
-    save_res = vk_api.docs.save(file=resp['file'], title = origin_name)
+    save_res = vk_api.docs.save(file=resp['file'], title=origin_name)
     save_res = save_res['doc']
     doc_id = 'doc' + str(save_res['owner_id']) + '_' + str(save_res['id'])
 
