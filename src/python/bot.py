@@ -79,8 +79,7 @@ def new_link(message):
 
 @bot.channel_post_handler(func=lambda m: True)
 def forward_text(message):
-    auth_token = db.get_vk_auth_token(message.chat.id)
-    vk_api = init_session(auth_token)
+    vk_api = init_session(db.get_vk_auth_token(message.chat.id))
 
     try:
         vk_api.wall.post(message=message.text)
@@ -125,7 +124,7 @@ def forward_photo(message):
     filename = download_link.split('/')[-1]
     download_response = requests.get(download_link,  allow_redirects=True)
 
-    vk_api = init_session(vk_token_k)
+    vk_api = init_session(db.get_vk_auth_token(message.chat.id))
     vk_photo_server = vk_api.photos.getWallUploadServer()
     upload_url = vk_photo_server['upload_url']
     open(filename, 'wb').write(download_response.content)
@@ -153,7 +152,7 @@ def forward_video(message):
     filename = download_link.split('/')[-1]
     download_response = requests.get(download_link,  allow_redirects=True)
 
-    vk_api = init_session(vk_token_k)
+    vk_api = init_session(db.get_vk_auth_token(message.chat.id))
     vk_video_server = vk_api.video.save()
     upload_url = vk_video_server['upload_url']
     open(filename, 'wb').write(download_response.content)
@@ -257,7 +256,7 @@ def get_vk_auth_url(channel_id):
         f'client_id={vk_app_id}' \
         'display=page&' \
         'redirect_uri=https://oauth.vk.com/blank.html&' \
-        'scope=wall,photos&' \
+        'scope=wall,photos,video,docs&' \
         'response_type=token&' \
         f'state={channel_id}&' \
         'v=5.131'
