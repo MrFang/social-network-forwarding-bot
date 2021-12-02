@@ -32,11 +32,12 @@ keyboard.add(register_key)
 keyboard.add(delete_key)
 keyboard.add(list_key)
 
-social_network_keyboard = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
+social_network_keyboard = telebot.types.ReplyKeyboardMarkup(
+    resize_keyboard=True
+)
 vk_key = telebot.types.KeyboardButton("🆕 VK")
 inst_key = telebot.types.KeyboardButton("🔜 Instagram")
 social_network_keyboard.row(vk_key, inst_key)
-
 
 
 def init_session(token):
@@ -53,8 +54,14 @@ def main(message):
 @bot.message_handler(content_types=['text'])
 def text_parse(message):
     if message.text == "🖇 Register new link":
-        choose_message = "Please, choose the social network you want to connect with your telegram channel"
-        bot.send_message(message.chat.id, choose_message, reply_markup=social_network_keyboard)
+        choose_message = \
+            "Please, choose the social network you " \
+            "want to connect with your telegram channel"
+        bot.send_message(
+            message.chat.id,
+            choose_message,
+            reply_markup=social_network_keyboard
+        )
     elif message.text == "✂️ Delete existing link":
         delete_link(message)
     elif message.text == "📝 List of your links":
@@ -66,8 +73,9 @@ def text_parse(message):
     elif message.text == "🆕 VK":
         new_link(message)
     elif message.text == "🔜 Instagram":
-        inst_message = "Sorry, now we are waiting the approve from Instagram to use our bot \n" \
-                      "This function will be soon!"
+        inst_message = "Sorry, now we are waiting the approve from Instagram" \
+            " to use our bot \n" \
+            "This function will be soon!"
         bot.send_message(message.chat.id, inst_message, reply_markup=keyboard)
     else:
         if db.is_pending_login(message.chat.id) and \
@@ -199,7 +207,11 @@ def forward_doc(message):
 def get_channel_name(message):
     if not message.text.startswith('@'):
         print(message.text)
-        bot.send_message(message.chat.id, "Wrong format of channel name, start it from @", reply_markup=keyboard)
+        bot.send_message(
+            message.chat.id,
+            "Wrong format of channel name, start it from @",
+            reply_markup=keyboard
+        )
         return
     try:
         channel = bot.get_chat(message.text)
@@ -208,7 +220,11 @@ def get_channel_name(message):
             message.from_user.id
         ).status
         if db.channel_is_exist(channel.id):
-            bot.send_message(message.chat.id, "This channel is already linked", reply_markup=keyboard)
+            bot.send_message(
+                message.chat.id,
+                "This channel is already linked",
+                reply_markup=keyboard
+            )
             return
     except telebot.apihelper.ApiTelegramException:
         bot.send_message(
