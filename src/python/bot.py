@@ -79,7 +79,8 @@ def new_link(message):
 
 @bot.channel_post_handler(func=lambda m: True)
 def forward_text(message):
-    vk_api = init_session(vk_token_k)
+    auth_token = db.get_vk_auth_token(message.chat.id)
+    vk_api = init_session(auth_token)
 
     try:
         vk_api.wall.post(message=message.text)
