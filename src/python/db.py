@@ -78,14 +78,22 @@ def save_access_token(channel_id, access_token, chat_id):
 def delete_line(user_id, num):
     with connection as conn:
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute("SELECT * FROM channel_to_vk WHERE issued_by = %s",
-                    (user_id,)
-                    )
+        cur.execute(
+            "SELECT * FROM channel_to_vk WHERE issued_by = %s",
+            (user_id,)
+        )
         data = cur.fetchall()
         del_id = data[num-1]['id']
-        cur.execute("DELETE FROM channel_to_vk WHERE id = %s",
-                    (del_id, )
-                    )
+
+        cur.execute('''
+            DELETE FROM deferred_posts
+            WHERE channel_id = %s
+        ''', (del_id, ))
+
+        cur.execute(
+            "DELETE FROM channel_to_vk WHERE id = %s",
+            (del_id, )
+        )
 
 
 def get_vk_auth_token(channel_id):
@@ -131,13 +139,13 @@ def get_deferred_posts(channel_id):
         ''', (channel_id,))
 
         posts = cur.fetchall()
-        ids = [str(post['id']) for post in posts]
+        ids = [post['id'] for post in posts]
 
         if len(ids) > 0:
             cur.execute('''
                 DELETE FROM deferred_posts
-                WHERE id IN (%s)
-            ''', (', '.join(ids),))
+                WHERE id IN %s
+            ''', (tuple(ids),))
 
     return [post['post_text'] for post in posts]
 
