@@ -20,7 +20,6 @@ if process_env == 'DEBUG':
 VK_AUTH_BASE_URL = 'https://oauth.vk.com/authorize?'
 tg_token = config['SNF_BOT_TELEGRAM_TOKEN']
 vk_app_id = config['SNF_BOT_VK_APP_ID']
-vk_token_k = '5aca1cbc531f88f3101b0505eaa138f638eb216b1b3514af6a1d224eaaca097093cd910dc7afd7589ffcf'
 bot = telebot.TeleBot(tg_token, parse_mode=None)
 
 no_keyboard = telebot.types.ReplyKeyboardRemove()
@@ -175,7 +174,7 @@ def forward_doc(message):
     filename = download_link.split('/')[-1]
     download_response = requests.get(download_link,  allow_redirects=True)
 
-    vk_api = init_session(vk_token_k)
+    vk_api = init_session(db.get_vk_auth_token(message.chat.id))
     vk_docs_server = vk_api.docs.getWallUploadServer()
     upload_url = vk_docs_server['upload_url']
     open(filename, 'wb').write(download_response.content)
